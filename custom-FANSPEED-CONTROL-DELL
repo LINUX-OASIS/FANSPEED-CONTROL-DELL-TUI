@@ -1,0 +1,279 @@
+#!/bin/bash
+
+# This script is a master script that controls the fan speed of Dell laptops.
+# It uses the i8kmon daemon to control the fan speed based on the temperature of the CPU.
+
+# The i8kmon daemon is a program that monitors the temperature of the CPU and controls the fan speed accordingly.
+# It is part of the i8kutils package, which is available in the official repositories of most Linux distributions.
+# i8kutils Fan Control for DELL laptops: is a collection of utilities for Dell laptops that use the i8k hardware monitoring driver.
+
+#check dependencies for i8kutils package and install them if not present
+if ! dpkg -l | grep -q i8kutils; then
+    sudo apt-get update
+    sudo apt-get install -y i8kutils
+fi
+
+# if i8kutils is not installed, exit the script
+if ! dpkg -l | grep -q i8kutils; then
+    echo "i8kutils package is not installed. EXITING..."
+    exit 1
+fi
+
+#The temperature points at which the fan changes speed can be adjusted in the configuration file /etc/i8kutils/i8kmon.conf. Only three fans speeds are supported (high, low, and off)
+#The default configuration file is /etc/i8kmon.conf. The configuration file is divided into three sections: the general section, the temperature section, and the fan section.
+#The general section contains general settings for the i8kmon daemon, such as the interval at which the temperature is checked and the interval at which the fan speed is updated.
+#The temperature section contains the temperature points at which the fan speed changes.
+#The fan section contains the fan speeds for each temperature point.
+
+# installation as a service
+#i8kmon can be started automatically by starting/enabling i8kmon.service.
+# The i8kmon daemon can be started as a service by creating a systemd unit file.
+
+#BIOS overriding fan control
+#Some newer laptops have BIOS fan control in place which will override the OS level fan control. \
+#To test if this the case, run i8kmon with verbose mode in a command line, make sure the CPU is idle, then see if the fan is turned off or turned down accordingly.
+#If fancontrol will not work on your system, use the ignore_dmi=1 kernel module parameter to load dell_smm_hwmon
+
+# NEWT_COLOR Profile: Industrial Look
+export NEWT_COLORS='
+root=black,lightgray
+border=gray,black
+window=yellow,black
+shadow=black,gray
+title=black,lightyellow
+textbox=white,black
+textbox_border=gray,black
+entry=black,lightgray
+entry_border=gray,black
+checkbox=black,lightgray
+checkbox_border=gray,black
+radio=black,lightgray
+radio_border=gray,black
+button=black,yellow
+button_border=gray,black
+compactbutton=black,lightyellow
+compactbutton_border=gray,black
+listbox=white,black
+listbox_border=gray,black
+actlistbox=black,lightyellow
+helpline=black,gray
+roottext=lightgray,black
+emptyscale=black,gray
+fullscale=black,lightyellow
+disabled=gray,black
+'
+
+_DELL_FANSPEED_CHOICE=$(
+    whiptail --fullbuttons --title "Dell Fan Speed Control" --menu "Choose an option" 0 0 5 \
+        "1" "DELL Fanspeed [STOCK]" \
+        "2" "DELL Fanspeed [LOW]" \
+        "3" "DELL Fanspeed [MAX]" \
+        "4" "DELL Fanspeed [STATUS]" \
+        "5" "Exit" 3>&1 1>&2 2>&3
+)
+
+case $_DELL_FANSPEED_CHOICE in
+1)
+    # Set the fan speed to stock
+    #stop DELL_FANSPEED_MAX.service & its timer if running
+    sudo systemctl stop DELL_FANSPEED_ALWAYS_MAX.timer 2>/dev/null
+    sudo systemctl stop DELL_FANSPEED_ALWAYS_MAX.service 2>/dev/null
+
+    sudo systemctl disable DELL_FANSPEED_ALWAYS_MAX.timer 2>/dev/null
+    sudo systemctl disable DELL_FANSPEED_ALWAYS_MAX.service 2>/dev/null
+    sudo systemctl daemon-reload
+
+    cat <<EOF | sudo tee /etc/i8kmon.conf >/dev/null
+### MODIFIED BY USER - NOT STOCK !!
+# Sample i8kmon configuration file (/etc/i8kmon.conf, ~/.i8kmon).
+
+# NORMAL  SPEEED !!- STOCK SETTINGS
+# External program to control the fans
+set config(i8kfan)	/usr/bin/i8kfan
+
+# Report status on stdout, override with --verbose option
+set config(verbose)	0
+
+# Status check timeout (seconds), override with --timeout option
+set config(timeout)	2
+
+# Temperature threshold at which the temperature is displayed in red
+set config(t_high)	80
+
+# Temperature thresholds: {fan_speeds low_ac high_ac low_batt high_batt}
+# These were tested on the I8000. If you have a different Dell laptop model
+# you should check the BIOS temperature monitoring and set the appropriate
+# thresholds here. In doubt start with low values and gradually rise them
+# until the fans are not always on when the cpu is idle.
+set config(0)   {{0 0}  -1  55  -1  60}
+set config(1)   {{1 1}  50  65  55  70}
+set config(2)   {{2 2}  60  75  65  80}
+set config(3)   {{2 2}  70 128  75 128}
+
+# Speed values are set here to avoid i8kmon probe them at every time it starts.
+set status(leftspeed)	"0 1000 2000 3000"
+set status(rightspeed)	"0 1000 2000 3000"
+
+# end of file
+EOF
+
+    echo "FANSPEED STATUS ::  FANSPEED STOCK ** STOCK  <3 :D" | sudo tee /var/tmp/dell-fanspeed.status >/dev/null
+
+    sudo systemctl restart i8kmon.service
+    ;;
+2)
+    # Set the fan speed to low
+    #stop DELL_FANSPEED_MAX.service & its timer if running
+    sudo systemctl stop DELL_FANSPEED_ALWAYS_MAX.timer 2>/dev/null
+    sudo systemctl stop DELL_FANSPEED_ALWAYS_MAX.service 2>/dev/null
+
+    sudo systemctl disable DELL_FANSPEED_ALWAYS_MAX.timer 2>/dev/null
+    sudo systemctl disable DELL_FANSPEED_ALWAYS_MAX.service 2>/dev/null
+    sudo systemctl daemon-reload
+
+    cat <<EOF | sudo tee /etc/i8kmon.conf >/dev/null
+### MODIFIED BY USER - NOT STOCK !!
+# Sample i8kmon configuration file (/etc/i8kmon.conf, ~/.i8kmon).
+
+# LOW  SPEEED !!
+# External program to control the fans
+set config(i8kfan)	/usr/bin/i8kfan
+
+# Report status on stdout, override with --verbose option
+set config(verbose)	0
+
+# Status check timeout (seconds), override with --timeout option
+set config(timeout)	2
+
+# Temperature threshold at which the temperature is displayed in red
+set config(t_high)	80
+
+# Temperature thresholds: {fan_speeds low_ac high_ac low_batt high_batt}
+# These were tested on the I8000. If you have a different Dell laptop model
+# you should check the BIOS temperature monitoring and set the appropriate
+# thresholds here. In doubt start with low values and gradually rise them
+# until the fans are not always on when the cpu is idle.
+set config(0)   {{1 1}  -1  55  -1  60}
+set config(1)   {{1 1}  50  65  55  70}
+set config(2)   {{2 2}  60  75  65  80}
+set config(3)   {{2 2}  70 128  75 128}
+
+# Speed values are set here to avoid i8kmon probe them at every time it starts.
+set status(leftspeed)	"0 1000 2000 3000"
+set status(rightspeed)	"0 1000 2000 3000"
+
+# end of file
+EOF
+
+    echo "FANSPEED STATUS ::  FANSPEED LOW ** LOW  <3 :D" | sudo tee /var/tmp/dell-fanspeed.status >/dev/null
+
+    sudo systemctl restart i8kmon.service
+    ;;
+3)
+    # Set the fan speed to max
+
+    cat <<EOF | sudo tee /etc/i8kmon.conf >/dev/null
+### MODIFIED BY USER - NOT STOCK !!
+# Sample i8kmon configuration file (/etc/i8kmon.conf, ~/.i8kmon).
+
+# HIGH  SPEEED !!
+# External program to control the fans
+set config(i8kfan)	/usr/bin/i8kfan
+
+# Report status on stdout, override with --verbose option
+set config(verbose)	0
+
+# Status check timeout (seconds), override with --timeout option
+set config(timeout)	2
+
+# Temperature threshold at which the temperature is displayed in red
+set config(t_high)	80
+
+# Temperature thresholds: {fan_speeds low_ac high_ac low_batt high_batt}
+# These were tested on the I8000. If you have a different Dell laptop model
+# you should check the BIOS temperature monitoring and set the appropriate
+# thresholds here. In doubt start with low values and gradually rise them
+# until the fans are not always on when the cpu is idle.
+
+set config(0)   {{2 2}  -1  55  -1  60}
+set config(1)   {{2 2}  50  65  55  70}
+set config(2)   {{2 2}  60  75  65  80}
+set config(3)   {{2 2}  70 128  75 128}
+
+
+# Speed values are set here to avoid i8kmon probe them at every time it starts.
+set status(leftspeed)	"0 1000 2000 3000"
+set status(rightspeed)	"0 1000 2000 3000"
+
+# end of file
+EOF
+
+    # create a systemd service and timer to set the fan speed to max every 6 seconds
+    # create a systemd service and timer to set the fan speed to max every 6 seconds
+
+    # executable file for the DELL_FANSPEED_MAX.service to set the fan speed to max
+
+    sudo mkdir -p /etc/systemd/system/CUST-SYSD
+    sudo chmod -R 777 /etc/systemd/system/CUST-SYSD
+
+    cat <<EOF >/etc/systemd/system/CUST-SYSD/DELL_FANSPEED_ALWAYS_MAX.sh
+#!/bin/bash
+timeout 6 i8kmon
+EOF
+
+    sudo chmod 777 /etc/systemd/system/CUST-SYSD/DELL_FANSPEED_ALWAYS_MAX.sh
+
+    cat <<EOF >/etc/systemd/system/DELL_FANSPEED_ALWAYS_MAX.service
+[Unit]
+Description=Set Dell Fan Speed to Max
+
+[Service]
+ExecStart=/etc/systemd/system/CUST-SYSD/DELL_FANSPEED_ALWAYS_MAX_TIMER.sh
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    cat <<EOF >/etc/systemd/system/DELL_FANSPEED_ALWAYS_MAX.timer
+[Unit]
+Description=Run FANSPEED_ALWAYS_MAX service every 6 seconds 
+
+[Timer]
+OnBootSec=0min
+OnUnitActiveSec=6s
+Unit=DELL_FANSPEED_ALWAYS_MAX.service
+
+[Install]
+WantedBy=timers.target
+
+
+EOF
+
+    sudo systemctl enable DELL_FANSPEED_ALWAYS_MAX.timer
+    sudo systemctl start DELL_FANSPEED_ALWAYS_MAX.timer
+    sudo systemctl daemon-reload
+
+    echo "FANSPEED STATUS ::  FANSPEED MAX ** MAX  <3 :D" | sudo tee /var/tmp/dell-fanspeed.status >/dev/null
+    sudo systemctl restart i8kmon.service
+
+    ;;
+4)
+    # Dell fanspeed status
+    if [ -f /var/tmp/dell-fanspeed.status ]; then
+        cat /var/tmp/dell-fanspeed.status
+    else
+        echo "FANSPEED STATUS ::  FANSPEED STOCK ** STOCK  <3 :D"
+    fi
+    ;;
+5)
+    # Default to stock fan speed
+    echo "User Exited"
+    exit
+    ;;
+
+*)
+    echo "Invalid choice .... User Aborted"
+    echo "User Exited .. Exiting"
+    exit
+    ;;
+esac
